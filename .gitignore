@@ -1,0 +1,7 @@
+/target
+# never commit game data: converted output, disc images, extracted files
+*.bin
+*.cue
+*.chd
+*.iso
+/out*/

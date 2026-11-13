@@ -1,0 +1,41 @@
+[package]
+name = "ok_br2_converter"
+version = "0.1.0"
+edition = "2024"
+description = "Converts a Bloody Roar II (USA, SCUS-94424) disc image into game data files (glTF models, tables, audio, movies)"
+license = "MIT"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "okconv-br2"
+path = "src/bin/okconv-br2/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["chd", "cli", "threads"]
+# CHD disc images (MAME compressed hunks of data), via the pure-Rust `chd` crate
+chd = ["dep:chd"]
+# the `okconv-br2` command line tool (convert, serve, check)
+cli = []
+# `Options::threads`: conversion steps on std threads (not on wasm32)
+threads = []
+
+[dependencies]
+# the animation math's sin / cos / acos: pure Rust, the same bits on every target (std's are the platform's libm);
+# pinned, so that an update cannot change the output
+libm = "=0.2.16"
+chd = { version = "0.3", optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+needless_range_loop = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"
+
+[profile.release]
+debug = 1

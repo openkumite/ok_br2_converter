@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disc resource viewer</title>
+<style>
+  :root {
+    --bg: #101216; --panel: #181b21; --panel2: #1f232b; --line: #2b303a;
+    --text: #e6e8ec; --muted: #8b93a1; --accent: #e5483a; --accent2: #f2a33a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { display: grid; grid-template-columns: 280px 1fr; height: 100%; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); display: flex;
+    flex-direction: column; min-height: 0; }
+  header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 15px; letter-spacing: .04em; }
+  header h1 span { color: var(--accent); }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+  .tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .tabs button { flex: 1; background: var(--panel2); color: var(--muted); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 0; cursor: pointer; font: inherit; }
+  .tabs button.on { color: var(--text); border-color: var(--accent); }
+  #list { overflow: auto; flex: 1; padding: 6px 8px 16px; }
+  .item { padding: 8px 10px; border-radius: 6px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center; gap: 8px; }
+  .item:hover { background: var(--panel2); }
+  .item.on { background: #2a1d1d; outline: 1px solid var(--accent); }
+  .item small { color: var(--muted); font-family: ui-monospace, monospace; }
+  .group { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    padding: 12px 10px 4px; }
+  main { position: relative; min-width: 0; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap;
+    gap: 8px; align-items: center; pointer-events: none; }
+  #hud > * { pointer-events: auto; }
+  .seg { display: inline-flex; background: rgba(24,27,33,.92); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: 0; color: var(--muted); padding: 6px 10px; cursor: pointer; font: inherit; }
+  .seg button.on { color: #fff; background: var(--accent); }
+  #zoom button { font-size: 17px; line-height: 1; padding: 5px 12px; color: var(--text); }
+  #zoom button:hover { background: var(--panel2); }
+  .seg button:disabled { opacity: .35; cursor: default; }
+  .chk { background: rgba(24,27,33,.92); border: 1px solid var(--line); border-radius: 8px;
+    padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; color: var(--muted); cursor: pointer; }
+  .chk input { accent-color: var(--accent); margin: 0; }
+  .chk select, .mini { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; font: inherit; padding: 2px 6px; cursor: pointer; }
+  #info { position: absolute; left: 12px; bottom: 12px; background: rgba(24,27,33,.92);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; color: var(--muted);
+    font: 12px/1.5 ui-monospace, monospace; max-width: calc(100% - 24px); }
+  #info b { color: var(--text); font-weight: 600; }
+  #dl { position: absolute; right: 12px; bottom: 12px; background: var(--accent); color: #fff;
+    border-radius: 8px; padding: 7px 12px; text-decoration: none; }
+  #gallery { position: absolute; inset: 0; overflow: auto; padding: 16px; display: none;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-content: start; }
+  #gallery figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  #gallery img { width: 100%; image-rendering: pixelated; display: block; background: #000; }
+  #gallery figcaption { color: var(--muted); font: 11px ui-monospace, monospace; margin-top: 6px; }
+  #datapane { position: absolute; inset: 0; overflow: auto; display: none; padding: 16px; }
+  #dtitle { color: var(--muted); font: 12px ui-monospace, monospace; margin-bottom: 8px; }
+  #dview { margin: 0; font: 12px/1.45 ui-monospace, monospace; color: var(--text); white-space: pre; }
+  #textpane { position: absolute; inset: 0; overflow: auto; display: none; padding: 16px; }
+  #tsearch { width: min(520px, 100%); background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; font: inherit; position: sticky; top: 0; z-index: 2; margin-bottom: 10px; }
+  .trow { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 4px 8px; border-bottom: 1px solid var(--line);
+    font: 13px ui-monospace, monospace; }
+  .trow small { color: var(--muted); }
+  .tabs { flex-wrap: wrap; }
+  .tabs button { flex: 1 1 30%; }
+  #videopane { position: absolute; inset: 0; overflow: auto; display: none; padding: 16px; }
+  #vplayer { width: 100%; max-width: 960px; aspect-ratio: 4 / 3; background: #000; border-radius: 10px;
+    display: block; margin: 0 auto; image-rendering: pixelated; }
+  #vtitle { text-align: center; color: var(--muted); font: 12px ui-monospace, monospace; margin: 8px 0 16px; }
+  #vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; max-width: 960px; margin: 0 auto; }
+  .vcard { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer; }
+  .vcard.on { border-color: var(--accent); }
+  .vcard img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #000; }
+  .vcard div { padding: 7px 9px; font-size: 12px; }
+  .vcard small { color: var(--muted); font-family: ui-monospace, monospace; }
+  .tabs button { font-size: 12px; }
+  #audiopane { position: absolute; inset: 0; overflow: auto; display: none; padding: 16px; }
+  #player { position: sticky; top: 0; z-index: 2; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  #player audio { width: min(480px, 100%); height: 36px; }
+  #nowplaying { color: var(--muted); font: 12px ui-monospace, monospace; }
+  .sect { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin: 18px 2px 8px; }
+  .tracks { display: grid; gap: 4px; }
+  .track { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 10px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .track:hover, .pad:hover { border-color: #4a505c; }
+  .track.on, .pad.on { border-color: var(--accent); background: #2a1d1d; }
+  .track .no, .track small, .pad small { color: var(--muted); font: 12px ui-monospace, monospace; }
+  .track a { color: var(--muted); text-decoration: none; font-size: 12px; }
+  .pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+  .pad { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer;
+    text-align: left; color: var(--text); font: inherit; }
+  .pad b { display: block; font-weight: 600; }
+  #err { position: absolute; inset: 0; display: none; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+  #err code { color: var(--accent2); }
+  @media (max-width: 720px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 42vh 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <header><h1>DISC <span>RESOURCES</span></h1><p id="sub">SCUS-94424 · HMD → glTF</p></header>
+    <div class="tabs">
+      <button data-tab="characters" class="on">Fighters</button>
+      <button data-tab="stages">Stages</button>
+      <button data-tab="images">Images</button>
+      <button data-tab="audio">Audio</button>
+      <button data-tab="video">Video</button>
+      <button data-tab="text">Text</button>
+      <button data-tab="data">Data</button>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main>
+    <canvas id="c"></canvas>
+    <div id="hud">
+      <div class="seg" id="form"><button data-v="human" class="on">Human</button><button data-v="beast">Beast</button></div>
+      <div class="seg" id="costume"><button data-v="1" class="on">1P</button><button data-v="2">2P</button><button data-v="3">3P</button><button data-v="4">4P</button></div>
+      <div class="seg" id="zoom" title="Zoom (mouse wheel, +/- keys). Right-drag or Shift+drag to pan.">
+        <button data-z="in">＋</button><button data-z="out">－</button><button data-z="reset">⟲</button></div>
+      <label class="chk"><input type="checkbox" id="wire"> wireframe</label>
+      <label class="chk"><input type="checkbox" id="bones"> skeleton</label>
+      <label class="chk"><input type="checkbox" id="smooth"> bilinear</label>
+      <label class="chk"><input type="checkbox" id="spin"> spin</label>
+      <label class="chk" id="altwrap"><input type="checkbox" id="alt"> alt hands</label>
+      <label class="chk" id="sphwrap" title="Body collision spheres from the .ANI file, attached to the bones"><input type="checkbox" id="sph"> hit spheres</label>
+      <label class="chk" id="debriswrap" title="Broken fence/floor pieces the game scatters when a ring wall breaks (all stored at the stage centre)"><input type="checkbox" id="debris"> wall debris</label>
+      <label class="chk" id="shadowwrap" title="Low-poly mesh the game uses to draw the fighter's shadow"><input type="checkbox" id="shadow"> shadow proxy</label>
+      <span class="chk" id="animwrap"><select id="anim"></select>
+        <button id="play" class="mini">❚❚</button>
+        <select id="speed"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select></span>
+    </div>
+    <div id="gallery"></div>
+    <div id="videopane"><video id="vplayer" controls playsinline preload="metadata"></video>
+      <div id="vtitle"></div><div id="vgrid"></div></div>
+    <div id="datapane"><div id="dtitle"></div><pre id="dview"></pre></div>
+    <div id="textpane"><input id="tsearch" type="search" placeholder="Search the game's text…">
+      <div id="tlist"></div></div>
+    <div id="audiopane">
+      <div id="player"><audio id="audio" controls preload="none"></audio><div id="nowplaying">Pick a track or sound</div></div>
+      <div id="audiolist"></div>
+    </div>
+    <div id="info"></div>
+    <a id="dl" href="#" download>Download .glb</a>
+    <div id="err"></div>
+  </main>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const $ = s => document.querySelector(s);
+const canvas = $('#c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101216);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 500);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.zoomSpeed = 2.5;
+controls.screenSpacePanning = true;
+controls.minDistance = 0.05;
+controls.maxDistance = 500;
+let homeView = null;
+scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x302822, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 4, 3); scene.add(sun);
+const grid = new THREE.GridHelper(10, 20, 0x3a3f4a, 0x23272f); scene.add(grid);
+
+const loader = new GLTFLoader();
+let manifest, current = null, helper = null, tab = 'characters';
+let mixer = null, clips = [], action = null, playing = true;
+const clock = new THREE.Clock();
+const state = { char: 0, costume: 1, form: 'human', stage: 0, anim: null };
+
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(1, r.height);
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+function playClip(name) {
+  if (!mixer) return;
+  if (action) { action.stop(); action = null; }
+  const clip = clips.find(c => c.name === name);
+  if (clip) { action = mixer.clipAction(clip); action.play(); action.paused = !playing; }
+  else mixer.stopAllAction();
+  $('#anim').value = clip ? name : '';
+}
+
+function clearModel() {
+  if (mixer) { mixer.stopAllAction(); mixer = null; action = null; }
+  if (helper) { scene.remove(helper); helper = null; }
+  if (!current) return;
+  scene.remove(current);
+  current.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) [].concat(o.material).forEach(m => { m.map && m.map.dispose(); m.dispose(); });
+  });
+  current = null;
+}
+
+function applyOptions() {
+  if (!current) return;
+  const wire = $('#wire').checked, smooth = $('#smooth').checked, alt = $('#alt').checked;
+  current.traverse(o => {
+    if (!o.isMesh) return;
+    [].concat(o.material).forEach(m => {
+      m.wireframe = wire;
+      if (m.map) {
+        const f = smooth ? THREE.LinearFilter : THREE.NearestFilter;
+        if (m.map.magFilter !== f) { m.map.magFilter = f; m.map.minFilter = f; m.map.needsUpdate = true; }
+      }
+    });
+  });
+  // alternate (open) hands overlap the fists; the game swaps them per move
+  // shadow proxy replaces the textured body so its low-poly shape is visible
+  const shadow = $('#shadow').checked;
+  current.traverse(o => {
+    if (!o.isMesh && !o.isSkinnedMesh) return;
+    const u = o.userData || (o.parent && o.parent.userData) || {};
+    const role = u.toggle || (o.parent && o.parent.userData && o.parent.userData.toggle);
+    if (role === 'debris') { o.visible = $('#debris').checked; return; }
+    if (role === 'shadow') o.visible = shadow;
+    else if (role === 'alt' || u.hiddenByDefault) o.visible = alt && !shadow;
+    else o.visible = !shadow;
+  });
+  if (helper) helper.visible = $('#bones').checked;
+  current.traverse(o => { if (o.userData && o.userData.sphere) o.visible = $('#sph').checked; });
+}
+
+function frame(obj, isStage) {
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  if (!isStage) { obj.position.y -= box.min.y; c.y -= box.min.y; }
+  const r = Math.max(size.x, size.y, size.z);
+  controls.target.copy(c);
+  camera.near = r / 500; camera.far = r * 50; camera.updateProjectionMatrix();
+  if (isStage) camera.position.set(c.x, c.y + r * 0.12, c.z + r * 0.45);
+  else camera.position.set(c.x + r * 0.35, c.y + r * 0.15, c.z + r * 1.6);
+  camera.near = r / 5000; camera.updateProjectionMatrix();
+  homeView = { pos: camera.position.clone(), target: controls.target.clone() };
+  grid.visible = !isStage;
+}
+
+const SPH_COLORS = { 1: 0x3ad1ff, 2: 0xff4d4d, 3: 0xffc23a };
+function addSpheres(list) {
+  list.forEach(s => {
+    let bone = null;
+    const want = THREE.PropertyBinding.sanitizeNodeName(s.bone);   // GLTFLoader strips '.' etc. from names
+    current.traverse(o => { if (!bone && o.isBone && (o.name === want || o.name === s.bone)) bone = o; });
+    if (!bone) return;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(s.radius, 12, 8),
+      new THREE.MeshBasicMaterial({ color: SPH_COLORS[s.group] || 0xffffff, wireframe: true, transparent: true,
+                                    opacity: s.set === 'A' ? 0.35 : 0.8, depthTest: false }));
+    m.userData.sphere = s; m.renderOrder = 10; m.visible = false;
+    bone.add(m);
+  });
+}
+
+async function show(file, isStage, meta, extra) {
+  $('#err').style.display = 'none';
+  $('#info').innerHTML = 'loading <b>' + file + '</b> …';
+  let gltf;
+  try { gltf = await loader.loadAsync(file + '?v=' + (manifest.version || 0)); }
+  catch (e) {
+    $('#err').style.display = 'grid';
+    $('#err').innerHTML = '<div>Could not load <code>' + file + '</code>.<br><br>Open this page through the bundled server:<br><code>okconv-br2 serve</code> on the export folder, then visit <code>http://localhost:8000</code>.</div>';
+    return;
+  }
+  clearModel();
+  current = gltf.scene;
+  let tris = 0, mats = new Set();
+  current.traverse(o => {
+    if (o.isMesh) {
+      tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+      [].concat(o.material).forEach(m => { mats.add(m); m.side = isStage ? THREE.DoubleSide : THREE.FrontSide; });
+      o.frustumCulled = false;
+    }
+  });
+  scene.add(current);
+  const skinned = current.getObjectByProperty('type', 'SkinnedMesh');
+  if (skinned) { helper = new THREE.SkeletonHelper(current); scene.add(helper); }
+  frame(current, isStage);
+  if (extra && extra.spheres) addSpheres(extra.spheres);
+  clips = gltf.animations || [];
+  const sel = $('#anim');
+  sel.innerHTML = '<option value="">rest pose</option>' + clips.map(c =>
+    `<option value="${c.name}">${c.name.replace('anim_', 'ACT #').replace('cmn_', 'shared #')} · ${c.duration.toFixed(2)}s</option>`).join('');
+  $('#animwrap').style.display = clips.length ? '' : 'none';
+  if (clips.length) {
+    mixer = new THREE.AnimationMixer(current);
+    mixer.timeScale = +$('#speed').value;
+    playClip(state.anim && clips.find(c => c.name === state.anim) ? state.anim : '');
+  }
+  applyOptions();
+  $('#dl').href = file; $('#dl').download = file.split('/').pop();
+  $('#info').innerHTML = meta + ` · <b>${tris | 0}</b> tris · <b>${mats.size}</b> materials` +
+    (skinned ? ` · <b>${skinned.skeleton.bones.length}</b> bones` : '');
+}
+
+function renderList() {
+  const L = $('#list'); L.innerHTML = '';
+  const hudChar = tab === 'characters';
+  $('#form').style.display = $('#costume').style.display = $('#altwrap').style.display =
+    $('#shadowwrap').style.display = $('#sphwrap').style.display = hudChar ? '' : 'none';
+  $('#debriswrap').style.display = tab === 'stages' ? '' : 'none';
+  if (!hudChar) $('#animwrap').style.display = 'none';
+  const flat = tab === 'images' || tab === 'audio' || tab === 'video' || tab === 'text' || tab === 'data';
+  $('#datapane').style.display = tab === 'data' ? 'block' : 'none';
+  $('#textpane').style.display = tab === 'text' ? 'block' : 'none';
+  $('#videopane').style.display = tab === 'video' ? 'block' : 'none';
+  if (tab !== 'video') $('#vplayer').pause();
+  $('#hud').style.display = flat ? 'none' : '';
+  $('#gallery').style.display = tab === 'images' ? 'grid' : 'none';
+  $('#audiopane').style.display = tab === 'audio' ? 'block' : 'none';
+  $('#info').style.display = $('#dl').style.display = flat ? 'none' : '';
+  canvas.style.visibility = flat ? 'hidden' : 'visible';
+  if (tab === 'characters') {
+    manifest.characters.forEach((c, i) => {
+      const d = document.createElement('div');
+      d.className = 'item' + (i === state.char ? ' on' : '');
+      d.innerHTML = `<span>${c.name}</span><small>${c.code}</small>`;
+      d.onclick = () => { state.char = i; state.anim = null; renderList(); loadChar(); };
+      L.appendChild(d);
+    });
+  } else if (tab === 'stages') {
+    manifest.stages.forEach((s, i) => {
+      const d = document.createElement('div');
+      d.className = 'item' + (i === state.stage ? ' on' : '');
+      d.innerHTML = `<span>${s.name || 'Stage ' + s.code.slice(2)}</span><small>${s.code}${s.code.startsWith('ST') ? '.DAT' : ''}</small>`;
+      d.onclick = () => { state.stage = i; renderList(); loadStage(); };
+      L.appendChild(d);
+    });
+  } else if (tab === 'audio') {
+    renderAudio(L);
+  } else if (tab === 'video') {
+    renderVideo(L);
+  } else if (tab === 'text') {
+    renderText(L);
+  } else if (tab === 'data') {
+    renderData(L);
+  } else {
+    const groups = {};
+    manifest.images.forEach(im => (groups[im.group] = groups[im.group] || []).push(im));
+    const G = $('#gallery'); G.innerHTML = '';
+    Object.keys(groups).sort().forEach(g => {
+      const d = document.createElement('div');
+      d.className = 'item'; d.innerHTML = `<span>${g}</span><small>${groups[g].length}</small>`;
+      d.onclick = () => document.getElementById('g-' + g)?.scrollIntoView({ behavior: 'smooth' });
+      L.appendChild(d);
+      groups[g].forEach((im, k) => {
+        const f = document.createElement('figure');
+        if (k === 0) f.id = 'g-' + g;
+        f.innerHTML = `<img loading="lazy" src="${im.file}" alt="${im.source} #${im.index}"><figcaption>${im.source} #${im.index}</figcaption>`;
+        G.appendChild(f);
+      });
+    });
+  }
+}
+
+const blobCache = new Map();
+let rangeOK = null;
+async function seekableURL(file, onProgress) {
+  if (rangeOK === null) {
+    try {
+      const r = await fetch(file, { headers: { Range: 'bytes=0-1' } });
+      rangeOK = r.status === 206;
+      r.body && r.body.cancel();
+    } catch { rangeOK = false; }
+  }
+  if (rangeOK) return file;                       // server supports seeking (okconv-br2 serve)
+  if (blobCache.has(file)) return blobCache.get(file);
+  const r = await fetch(file);                    // plain server: load into memory so seeking works
+  const total = +r.headers.get('content-length') || 0;
+  const reader = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value); got += value.length;
+    if (onProgress && total) onProgress(got / total);
+  }
+  const url = URL.createObjectURL(new Blob(parts, { type: r.headers.get('content-type') || '' }));
+  blobCache.set(file, url);
+  return url;
+}
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+async function playAudio(file, label, el) {
+  const a = $('#audio');
+  $('#nowplaying').textContent = label + ' · loading…';
+  a.src = await seekableURL(file, p => $('#nowplaying').textContent = `${label} · loading ${Math.round(p * 100)}%`);
+  a.play();
+  $('#nowplaying').textContent = label;
+  document.querySelectorAll('.track.on, .pad.on').forEach(x => x.classList.remove('on'));
+  if (el) el.classList.add('on');
+}
+function renderData(L) {
+  const D = manifest.data;
+  if (!D) { $('#dview').textContent = 'No game data in this export.'; return; }
+  const open = async (file, el) => {
+    L.querySelectorAll('.item.on').forEach(x => x.classList.remove('on')); el.classList.add('on');
+    $('#dtitle').textContent = file + ' · loading…';
+    let t = await (await fetch(file + '?v=' + (manifest.version || 0))).text();
+    if (file.endsWith('.json')) {
+      try {
+        t = JSON.stringify(JSON.parse(t), (k, v) => (typeof v === 'string' && v.length > 600) ? v.slice(0, 600) + '… (' + v.length + ' chars)' : v, 1);
+      } catch {}
+    }
+    $('#dtitle').textContent = file; $('#dview').textContent = t; $('#datapane').scrollTop = 0;
+  };
+  const sect = (title, files, label) => {
+    const h = document.createElement('div'); h.className = 'group'; h.textContent = `${title} (${files.length})`; L.appendChild(h);
+    files.forEach(f => {
+      const d = document.createElement('div'); d.className = 'item';
+      d.innerHTML = `<span>${label(f)}</span>`; d.onclick = () => open(f, d); L.appendChild(d);
+    });
+  };
+  sect('.ANI (skeleton, capsules, moves)', D.ani, f => f.split('/').pop().replace('.json', ''));
+  if (D.moves) sect('Move scripts (disassembly)', D.moves, f => f.split('/').pop().replace('_moves.txt', ''));
+  sect('Effect scripts (disassembly)', D.effects, f => f.split('/').pop().replace('.txt', ''));
+  sect('Emitter definitions', D.emitters, f => f.split('/').pop().replace('.json', ''));
+  if (D.ani.length) open(D.ani[0], L.querySelector('.item'));
+}
+
+let gameText = null;
+async function renderText(L) {
+  if (!manifest.text) { $('#tlist').textContent = 'No text in this export.'; return; }
+  if (!gameText) gameText = await (await fetch(manifest.text.file + '?v=' + (manifest.version || 0))).json();
+  const groups = [...new Set(gameText.map(t => t.group))];
+  let only = null;
+  const draw = () => {
+    const q = $('#tsearch').value.trim().toLowerCase();
+    const T = $('#tlist'); T.innerHTML = '';
+    groups.forEach(g => {
+      if (only && g !== only) return;
+      const rows = gameText.filter(t => t.group === g && (!q || t.text.toLowerCase().includes(q)));
+      if (!rows.length) return;
+      const h = document.createElement('div'); h.className = 'sect'; h.textContent = `${g} · ${rows.length}`; T.appendChild(h);
+      rows.forEach(t => {
+        const r = document.createElement('div'); r.className = 'trow';
+        r.innerHTML = `<small>${t.addr}</small><span></span>`; r.lastChild.textContent = t.text; T.appendChild(r);
+      });
+    });
+  };
+  L.innerHTML = '';
+  const all = document.createElement('div'); all.className = 'item on';
+  all.innerHTML = `<span>All text</span><small>${gameText.length}</small>`;
+  all.onclick = () => { only = null; L.querySelectorAll('.item').forEach(x => x.classList.toggle('on', x === all)); draw(); };
+  L.appendChild(all);
+  groups.forEach(g => {
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = `<span>${g}</span><small>${gameText.filter(t => t.group === g).length}</small>`;
+    d.onclick = () => { only = g; L.querySelectorAll('.item').forEach(x => x.classList.toggle('on', x === d)); draw(); };
+    L.appendChild(d);
+  });
+  $('#tsearch').oninput = draw;
+  draw();
+}
+
+function renderVideo(L) {
+  const V = manifest.videos || [];
+  const G = $('#vgrid'); G.innerHTML = '';
+  if (!V.length) { $('#vtitle').textContent = 'No videos in this export (ffmpeg is needed to convert STR files).'; return; }
+  const pick = async (v, card, autoplay) => {
+    const p = $('#vplayer'); p.poster = v.poster;
+    const info = `${v.title} · ${v.source} · ${fmtTime(v.duration)} · 320×240 MDEC${v.fps ? ' · ' + v.fps + ' fps' : ''}`;
+    $('#vtitle').textContent = info + ' · loading…';
+    p.src = await seekableURL(v.file, x => $('#vtitle').textContent = `${info} · loading ${Math.round(x * 100)}%`);
+    $('#vtitle').textContent = info + ' · ←/→ seek 5 s';
+    if (autoplay) p.play();
+    document.querySelectorAll('.vcard.on, #list .item.on').forEach(x => x.classList.remove('on'));
+    card.classList.add('on'); L.children[V.indexOf(v)].classList.add('on');
+  };
+  V.forEach((v, i) => {
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = `<span>${v.title}</span><small>${fmtTime(v.duration)}</small>`;
+    const c = document.createElement('div'); c.className = 'vcard';
+    c.innerHTML = `<img src="${v.poster}" alt="" loading="lazy"><div>${v.title}<br><small>${v.source.split('/').pop()} · ${fmtTime(v.duration)}</small></div>`;
+    d.onclick = c.onclick = () => pick(v, c, true);
+    L.appendChild(d); G.appendChild(c);
+    if (i === 0) pick(v, c, false);
+  });
+}
+
+function renderAudio(L) {
+  const A = manifest.audio;
+  const P = $('#audiolist'); P.innerHTML = '';
+  if (!A) { P.innerHTML = '<p>No audio in this export. Convert with <code>okconv-br2 convert IMAGE OUT --viewer</code> (MP3 previews need ffmpeg).</p>'; return; }
+  const nav = (label, count, id) => {
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = `<span>${label}</span><small>${count}</small>`;
+    d.onclick = () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    L.appendChild(d);
+  };
+  // soundtrack
+  nav('Soundtrack', A.music.length, 'a-music');
+  const h = document.createElement('div'); h.className = 'sect'; h.id = 'a-music';
+  h.textContent = 'Soundtrack · XA streams (37.8 kHz stereo)'; P.appendChild(h);
+  const T = document.createElement('div'); T.className = 'tracks'; P.appendChild(T);
+  A.music.forEach((m, i) => {
+    const r = document.createElement('div'); r.className = 'track';
+    r.innerHTML = `<span class="no">${String(i + 1).padStart(2, '0')}</span><span>${m.title}</span>` +
+      `<small>${fmtTime(m.duration)}</small><a href="${m.preview || m.file}" download title="download">⤓</a>`;
+    r.onclick = e => { if (e.target.tagName !== 'A') playAudio(m.preview || m.file, `${m.source} · channel ${m.channel}`, r); };
+    T.appendChild(r);
+  });
+  // sound banks grouped by kind
+  const kinds = {};
+  A.sfx.forEach(b => (kinds[b.kind] = kinds[b.kind] || []).push(b));
+  Object.keys(kinds).sort().forEach(k => {
+    kinds[k].forEach(b => {
+      const id = 'a-' + b.bank.replace(/\W/g, '_');
+      const who = (manifest.characters.find(c => b.bank.startsWith(c.code + '/')) || {}).name;
+      const title = `${who ? who + ' · ' : ''}${k} — ${b.bank}${b.label ? ' · sound test: ' + b.label : ''}`;
+      nav(who ? `${who} · ${k}` : `${k} · ${b.bank.split('/')[1]}`, b.samples.length, id);
+      const s = document.createElement('div'); s.className = 'sect'; s.id = id; s.textContent = title; P.appendChild(s);
+      const G = document.createElement('div'); G.className = 'pads'; P.appendChild(G);
+      b.samples.forEach((x, j) => {
+        const btn = document.createElement('button'); btn.className = 'pad';
+        btn.innerHTML = `<b>#${String(j + 1).padStart(2, '0')}</b><small>${x.duration.toFixed(2)}s · ${(x.rate / 1000).toFixed(1)}k</small>`;
+        btn.onclick = () => playAudio(x.file, `${b.bank} #${j + 1} · ${x.rate} Hz`, btn);
+        G.appendChild(btn);
+      });
+    });
+  });
+}
+
+function loadChar() {
+  const c = manifest.characters[state.char];
+  const cos = c.costumes.find(x => x.costume === state.costume) || c.costumes[0];
+  const m = cos.models[state.form] || Object.values(cos.models)[0];
+  document.querySelectorAll('#form button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === state.form);
+    b.disabled = !cos.models[b.dataset.v];
+  });
+  document.querySelectorAll('#costume button').forEach(b => b.classList.toggle('on', +b.dataset.v === cos.costume));
+  show(m.file, false, `<b>${c.name}</b> · ${cos.costume}P · ${state.form}` + (c.story ? ` · story: <i>${c.story}</i>` : ''), m);
+}
+function loadStage() {
+  const s = manifest.stages[state.stage];
+  show(s.file, s.code.startsWith('ST'), `<b>${s.name || s.code}</b> · ${s.code} · ${s.parts} meshes` + (s.floor_tiles ? ` · ${s.floor_tiles} floor tiles` : ''));
+}
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  tab = b.dataset.tab; renderList();
+  if (tab === 'characters') loadChar(); else if (tab === 'stages') loadStage();
+  resize();
+});
+document.querySelectorAll('#form button').forEach(b => b.onclick = () => { state.form = b.dataset.v; loadChar(); });
+document.querySelectorAll('#costume button').forEach(b => b.onclick = () => { state.costume = +b.dataset.v; loadChar(); });
+['#wire', '#bones', '#smooth', '#alt', '#shadow', '#debris', '#sph'].forEach(s => $(s).onchange = applyOptions);
+function zoom(how) {
+  if (how === 'reset') {
+    if (homeView) { camera.position.copy(homeView.pos); controls.target.copy(homeView.target); }
+    return;
+  }
+  const k = how === 'in' ? 0.7 : 1 / 0.7;
+  const off = camera.position.clone().sub(controls.target).multiplyScalar(k);
+  camera.position.copy(controls.target).add(off);
+}
+document.querySelectorAll('#zoom button').forEach(b => b.onclick = () => zoom(b.dataset.z));
+addEventListener('keydown', e => {
+  const media = tab === 'video' ? $('#vplayer') : tab === 'audio' ? $('#audio') : null;
+  if (media && media.src && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.target.tagName !== 'INPUT') {
+    media.currentTime = Math.max(0, Math.min(media.duration || 0, media.currentTime + (e.key === 'ArrowRight' ? 5 : -5)));
+    e.preventDefault(); return;
+  }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || tab === 'images' || tab === 'audio' || tab === 'video') return;
+  if (e.key === '+' || e.key === '=') zoom('in');
+  else if (e.key === '-' || e.key === '_') zoom('out');
+  else if (e.key === '0') zoom('reset');
+});
+$('#anim').onchange = e => { state.anim = e.target.value; playClip(e.target.value); };
+$('#play').onclick = () => {
+  playing = !playing; $('#play').textContent = playing ? '❚❚' : '▶';
+  if (action) action.paused = !playing;
+};
+$('#speed').onchange = e => { if (mixer) mixer.timeScale = +e.target.value; };
+
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta();
+  if (mixer) mixer.update(dt);
+  if ($('#spin').checked && current && tab === 'characters') current.rotation.y += 0.01;
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+try {
+  manifest = await (await fetch('manifest.json', { cache: 'no-store' })).json();
+  $('#sub').textContent = manifest.game;
+  resize(); renderList(); loadChar();
+} catch (e) {
+  resize();
+  $('#err').style.display = 'grid';
+  $('#err').innerHTML = '<div>manifest.json not found.<br><br>Run <code>okconv-br2 convert "Bloody Roar II (USA).cue" out --viewer</code>, then serve that folder:<br><code>okconv-br2 serve out</code></div>';
+}
+</script>
+</body>
+</html>
