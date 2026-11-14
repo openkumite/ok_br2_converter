@@ -1,0 +1,21 @@
+# Dependabot version updates: one grouped pull request a week per ecosystem; CI checks each one.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ["*"]
+    ignore:
+      # pinned on purpose: the animation math's sin / cos / acos, an update could change the converter's output
+      - dependency-name: libm
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
