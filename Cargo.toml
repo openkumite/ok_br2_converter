@@ -27,7 +27,7 @@ threads = []
 # the animation math's sin / cos / acos: pure Rust, the same bits on every target (std's are the platform's libm);
 # pinned, so that an update cannot change the output
 libm = "=0.2.16"
-chd = { version = "0.3", optional = true }
+chd = { version = "0.4", optional = true }
 
 [lints.rust]
 unsafe_code = "forbid"
