@@ -1,6 +1,6 @@
 [package]
 name = "ok_br2_converter"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Converts a Bloody Roar II (USA, SCUS-94424) disc image into game data files (glTF models, tables, audio, movies)"
 license = "MIT"

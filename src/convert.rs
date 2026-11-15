@@ -857,7 +857,9 @@ fn pure_task(task: &Task, ctx: &Ctx) -> Result<Out, String> {
                 } else if name.starts_with("/STY/") {
                     format!("engine/sty/{}/{base}", name.split('/').nth(2).unwrap_or(""))
                 } else if base.ends_with("CON.DAT") {
-                    format!("engine/con/{base}")
+                    // the disc's CON folder under another name: CON is a reserved device name on Windows, where
+                    // creating a folder named "con" fails ("The directory name is invalid", os error 267)
+                    format!("engine/continue/{base}")
                 } else {
                     continue;
                 };

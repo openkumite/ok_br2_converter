@@ -17,13 +17,38 @@ const STAGES: [&str; 13] = ["ST0", "ST1", "ST2", "ST3", "ST4", "ST5", "ST6", "ST
 const MOVIES: [&str; 4] = ["USAOP", "BR", "ED1", "ED2"];
 
 fn safe_path(p: &str) -> bool {
-    !p.is_empty() && !p.starts_with('/') && !p.contains('\\') && !p.contains(':') && p.split('/').all(|c| !c.is_empty() && c != "." && c != "..")
+    !p.is_empty()
+        && !p.starts_with('/')
+        && !p.contains('\\')
+        && !p.contains(':')
+        && p.split('/').all(|c| !c.is_empty() && c != "." && c != ".." && !reserved(c))
+}
+
+/// A name Windows keeps for a device (CON, PRN, AUX, NUL, COM1..9, LPT1..9, with or without an extension): a folder
+/// or file of that name cannot be created there (Windows 10: "The directory name is invalid", os error 267).
+fn reserved(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4 && stem.as_bytes()[3].is_ascii_digit() && stem.as_bytes()[3] != b'0')
+}
+
+#[test]
+fn reserved_names() {
+    for n in ["con", "CON", "con.dat", "Aux", "nul.txt", "prn", "COM1", "lpt9.bin"] {
+        assert!(reserved(n), "{n}");
+    }
+    for n in ["continue", "cont", "icon", "com", "com0", "com10", "lpt", "YUGCON.DAT", "console"] {
+        assert!(!reserved(n), "{n}");
+    }
+    assert!(!safe_path("engine/con/YUGCON.DAT") && safe_path("engine/continue/YUGCON.DAT"));
 }
 
 fn required() -> Vec<String> {
     let mut v: Vec<String> =
         ["manifest.json", "engine/INIT.DAT", "engine/tables.okt", "engine/index.json", "engine/CMN.ACT", "engine/eft/EFT.DAT"].map(String::from).into();
     v.extend(["INIT", "USATITLE", "SE00", "P00"].map(|n| format!("engine/cmn/{n}.DAT")));
+    // the continue screens' pictures (not under "con": a reserved name on Windows)
+    v.extend(CHARACTERS.map(|c| format!("engine/continue/{c}CON.DAT")));
     for c in CHARACTERS {
         v.push(format!("engine/{c}.ACT"));
         v.push(format!("engine/eft/{c}EFT.DAT"));
