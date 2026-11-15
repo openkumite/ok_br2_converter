@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "ok_br2_converter"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chd",
  "libm",
